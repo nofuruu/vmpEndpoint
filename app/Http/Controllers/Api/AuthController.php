@@ -47,7 +47,6 @@ class AuthController extends Controller
         }
     }
 
-
     public function logout()
     {
         try {
@@ -62,30 +61,25 @@ class AuthController extends Controller
         }
     }
 
-
     public function register(Request $request)
     {
         $request->validate([
             'name' => 'required|string|unique:users,name',
-            'password' => 'required|string|min:6|confirmed',
-            'password_confirmation' => 'required|string|min:6',
-            'email' => [
-                'required',
-                'unique:users,email',
-                'regex:/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', // Menambahkan regex untuk validasi format email yang lebih ketat
-            ],
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:6',
+            'password_confirm' => 'required|same:password',
         ]);
 
         $user = \App\Models\User::create([
             'name' => $request->name,
-            'password' => bcrypt($request->password),
             'email' => $request->email,
+            'password' => bcrypt($request->password),
         ]);
 
         return response()->json([
             'status' => true,
             'message' => 'Register berhasil',
-            'redirect' => 'login'
+            'redirect' => '/login',
         ], 201);
     }
 }
