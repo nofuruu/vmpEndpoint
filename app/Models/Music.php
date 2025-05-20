@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Models;
 
@@ -21,6 +21,8 @@ class Music extends Model
         'release_date',
         'description',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'cover_url',
+        'audio_url',
     ];
 }

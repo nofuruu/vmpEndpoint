@@ -6,30 +6,105 @@ use App\Http\Controllers\Controller;
 use Illuminate\Database\DBAL\TimestampType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Cloudinary\Cloudinary;
+use App\Models\Music;
 
 class MusicController extends Controller
 {
     protected $user;
     protected $model;
+    protected $cloudinary;
     /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
      */
+
+    public function __construct()
+    {
+        $this->cloudinary = new Cloudinary([
+            'cloud' => [
+                'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+                'api_key'    => env('CLOUDINARY_API_KEY'),
+                'api_secret' => env('CLOUDINARY_API_SECRET'),
+            ],
+            'url' => ['secure' => true],
+        ]);
+        $this->model = new Music();
+    }
+    public function index(Request $request)
+    {
+        $query = Music::select(
+            'id',
+            'title',
+            'artist',
+            'album',
+            'genre',
+            'cover_url',
+            'audio_url',
+            'duration',
+            'description',
+            'created_at'
+        )->orderBy('title');
+
+        // Filter by genre jika ada parameter genre
+        if ($request->has('genre') && $request->genre !== null && $request->genre !== '') {
+            $query->where('genre', $request->genre);
+        }
+
+        $songs = $query->get();
+
+        return response()->json($songs);
+    }
+
+
     public function datatable(Request $request)
     {
         try {
-            $query = $this->model->orderBy('id', 'asc');
+            $draw = $request->get('draw');
+            $start = $request->get('start');
+            $length = $request->get('length');
+            $searchValue = $request->input('search.value');
+
+            $query = Music::query(); // Ini penting: gunakan query builder
+
+            // Filtering by search keyword (opsional)
+            if (!empty($searchValue)) {
+                $query->where(function ($q) use ($searchValue) {
+                    $q->where('title', 'like', '%' . $searchValue . '%')
+                        ->orWhere('artist', 'like', '%' . $searchValue . '%');
+                });
+            }
+
+            // Filtering by tanggal jika ada
             if ($request->has('from_date') && $request->has('to_date')) {
                 $query->whereBetween('created_at', [$request->from_date, $request->to_date]);
             }
 
-            $music = $query->get();
-            return $this->successResponse($music);
+            $totalRecords = Music::count(); // semua data (tanpa filter)
+            $totalFiltered = $query->count(); // total setelah filter
+
+            $data = $query->orderBy('id', 'asc')
+                ->skip($start)
+                ->take($length)
+                ->get();
+
+            return response()->json([
+                'draw' => intval($draw),
+                'recordsTotal' => $totalRecords,
+                'recordsFiltered' => $totalFiltered,
+                'data' => $data,
+            ]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Error fetching products', 500);
+            return response()->json([
+                'error' => 'Terjadi kesalahan.',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
+
+
 
     /**
      * Store a newly created resource in storage.
@@ -37,28 +112,114 @@ class MusicController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
+    public function uploadCover(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'cover_img' => 'required|image|max:5120', // max 5MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $upload = $this->cloudinary->uploadApi()->upload(
+                $request->file('cover_img')->getRealPath(),
+                ['folder' => 'musikku/covers']
+            );
+
+            return response()->json([
+                'success' => true,
+                'url'     => $upload['secure_url'],
+                'public_id' => $upload['public_id'],
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload gagal: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function uploadAudio(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'audio_file' => 'required|mimetypes:audio/mpeg,audio/wav,audio/ogg|max:20480', // max 20MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $upload = $this->cloudinary->uploadApi()->upload(
+                $request->file('audio_file')->getRealPath(),
+                [
+                    'resource_type' => 'video', // untuk file audio
+                    'folder'        => 'musikku/audios'
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'url'     => $upload['secure_url'],
+                'public_id' => $upload['public_id'],
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload audio gagal: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'album' => 'nullable|string|max:255',
+            'genre' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'artist' => 'nullable|string|max:255',
+            'duration' => 'required|string|max:255',
+            'cover_url' => 'required|url',
+            'audio_url' => 'required|url',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
         try {
-            $validator = Validator::make($request->all(), [
-                'title' => 'required|string|max:255',
-                'album' => 'nullable|string|max:255',
-                'genre' => 'nullable|string|max:255',
-                'cover_img' => 'required|string|max:255', // jika URL
-                'audio_file' => 'required|string|max:255', // jika URL
-                'duration' => 'nullable|string|max:255',
-                'release_date' => 'nullable|date', // atau 'date_format:Y-m-d' jika butuh format khusus
-                'description' => 'nullable|string|max:255',
+            $music = Music::create([
+                'title' => $request->title,
+                'album' => $request->album,
+                'genre' => $request->genre,
+                'artist' => $request->artist,
+                'duration' => $request->duration,
+                'description' => $request->description,
+                'cover_url' => $request->cover_url,
+                'audio_url' => $request->audio_url,
             ]);
 
-            if ($validator->fails()) {
-                return $this->errorResponse($validator->errors(), 422);
-            }
-
-            $music = $this->model->create($validator->validated());
-            return $this->successResponse($music, 'Music successfully added', 201);
+            return response()->json([
+                'success' => true,
+                'data' => $music,
+            ]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Error adding music: ' . $e->getMessage(), 500);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 
