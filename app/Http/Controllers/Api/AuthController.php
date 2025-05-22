@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Exception;
 use Illuminate\Http\Request;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -30,56 +29,36 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Login success',
-            'redirect' => 'dashboard'
+            'message' => 'Login Success',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ]
         ]);
     }
 
-    public function me()
+    public function logout(Request $request)
     {
-        try {
-            return response()->json(JWTauth::user());
-        } catch (Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Unauthorized'
-            ], 401);
-        }
-    }
+        auth()->logout();
 
-    public function logout()
-    {
-        try {
-            JWTAuth::invalidate(JWTAuth::getToken());
-
-            return response()->json(['message' => 'Logout berhasil']);
-        } catch (Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal logout'
-            ], 500);
-        }
-    }
-
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|unique:users,name',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
-            'password_confirm' => 'required|same:password',
-        ]);
-
-        $user = \App\Models\User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => bcrypt($request->password),
-        ]);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'status' => true,
-            'message' => 'Register berhasil',
-            'redirect' => '/login',
-        ], 201);
+            'message' => 'Logout berhasil'
+        ]);
+    }
+
+    public function profile()
+    {
+        $user = auth()->user();
+        return response()->json([
+            'name' => $user->name,
+            'email' => $user->email,
+            'profile_picture' => $user->profile_picture,
+            'bio' => $user->bio
+        ]);
     }
 }
