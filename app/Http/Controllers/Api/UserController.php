@@ -14,6 +14,8 @@ class UserController extends Controller
 
     protected $model;
     // Menampilkan semua pengguna
+
+    public function __construct() {}
     public function index()
     {
         $users = User::all();
@@ -49,14 +51,26 @@ class UserController extends Controller
     // Menampilkan detail pengguna berdasarkan ID
     public function show($id)
     {
-        $user = User::find($id);
-        if (!$user) {
-            return response()->json(['status' => false, 'message' => 'Pengguna tidak ditemukan'], 404);
+        try {
+            $user = User::lockForUpdate()->find($id);
+
+            if (!$user) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Pengguna tidak ditemukan'
+                ], 404);
+            }
+
+            return response()->json([
+                'status' => true,
+                'user' => $user
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat mengambil data pengguna'
+            ], 500);
         }
-        return response()->json([
-            'status' => true,
-            'user' => $user
-        ]);
     }
 
     // Update data pengguna berdasarkan ID

@@ -33,7 +33,7 @@ Route::get('/musicDatatable', [MusicController::class, 'datatable']);
 // Route::post('/music', [MusicController::class, 'store']);
 Route::get('/music/{id}', [MusicController::class, 'show']);
 Route::put('/music/{id}', [MusicCOntroller::class, 'update']);
-Route::delete('/produk/{id}', [MusicController::class, 'destroy']);
+Route::delete('/music/{id}', [MusicController::class, 'destroy']);
 Route::post('upload-cover', [MusicController::class, 'uploadCover']);
 Route::post('upload-audio', [MusicController::class, 'uploadAudio']);
 Route::post('music',       [MusicController::class, 'store']);

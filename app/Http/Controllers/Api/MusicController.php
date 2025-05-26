@@ -67,9 +67,8 @@ class MusicController extends Controller
             $length = $request->get('length');
             $searchValue = $request->input('search.value');
 
-            $query = Music::query(); // Ini penting: gunakan query builder
+            $query = Music::query();
 
-            // Filtering by search keyword (opsional)
             if (!empty($searchValue)) {
                 $query->where(function ($q) use ($searchValue) {
                     $q->where('title', 'like', '%' . $searchValue . '%')
@@ -77,18 +76,24 @@ class MusicController extends Controller
                 });
             }
 
-            // Filtering by tanggal jika ada
             if ($request->has('from_date') && $request->has('to_date')) {
                 $query->whereBetween('created_at', [$request->from_date, $request->to_date]);
             }
 
-            $totalRecords = Music::count(); // semua data (tanpa filter)
-            $totalFiltered = $query->count(); // total setelah filter
+            $totalRecords = Music::count();
+            $totalFiltered = $query->count();
 
             $data = $query->orderBy('id', 'asc')
                 ->skip($start)
                 ->take($length)
-                ->get();
+                ->get()
+                ->map(function ($item) {
+                    // Add action buttons to each row
+                    $item->action = '<button class="btn btn-danger btn-sm delete-btn" data-id="' . $item->id . '" onclick="deleteMusic(' . $item->id . ')">
+                                    <i class="fas fa-trash"></i>
+                                </button>';
+                    return $item;
+                });
 
             return response()->json([
                 'draw' => intval($draw),
@@ -103,7 +108,6 @@ class MusicController extends Controller
             ], 500);
         }
     }
-
 
 
     /**
@@ -258,14 +262,21 @@ class MusicController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(string $id)
     {
         try {
             $music = $this->model->findOrFail($id);
             $music->delete();
-            return $this->successResponse(null, 'Music Deleted', 500);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Music Deleted'
+            ], 200);
         } catch (\Exception $e) {
-            return $this->errorResponse('Error deleting music', 500);
+            return response()->json([
+                'status' => false,
+                'message' => 'Error deleting music: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

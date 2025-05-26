@@ -50,15 +50,4 @@ class AuthController extends Controller
             'message' => 'Logout berhasil'
         ]);
     }
-
-    public function profile()
-    {
-        $user = auth()->user();
-        return response()->json([
-            'name' => $user->name,
-            'email' => $user->email,
-            'profile_picture' => $user->profile_picture,
-            'bio' => $user->bio
-        ]);
-    }
 }
